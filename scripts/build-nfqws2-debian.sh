@@ -17,12 +17,19 @@ git clone --no-checkout https://github.com/bol-van/zapret2.git "$WORK/zapret2"
 git -C "$WORK/zapret2" checkout --detach "$ZAPRET2_COMMIT"
 ACTUAL="$(git -C "$WORK/zapret2" rev-parse HEAD)"
 [[ "$ACTUAL" == "$ZAPRET2_COMMIT" ]] || { echo "SHA mismatch" >&2; exit 3; }
-make -C "$WORK/zapret2/nfq2"
+make -C "$WORK/zapret2/nfq2" LUA_JIT=1
 BIN="$WORK/zapret2/nfq2/nfqws2"
 test -x "$BIN"
 file "$BIN"
 cp "$BIN" "$OUT/nfqws2"
 sha256sum "$OUT/nfqws2" > "$OUT/nfqws2.sha256"
 printf '%s\n' "$ACTUAL" > "$OUT/upstream-commit.txt"
-"$OUT/nfqws2" --help > "$OUT/help.txt" 2>&1 || { echo "Help smoke test failed" >&2; exit 4; }
+set +e
+"$OUT/nfqws2" --help > "$OUT/help.txt" 2>&1
+HELP_RC=$?
+set -e
+if ! grep -Eiq "nfqws2|usage|options|dpi.desync" "$OUT/help.txt"; then
+  echo "Unexpected help output (exit=$HELP_RC)" >&2
+  exit 4
+fi
 echo "Built and smoke-tested $OUT/nfqws2 at $ACTUAL"
