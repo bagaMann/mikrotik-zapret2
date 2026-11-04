@@ -1,0 +1,6 @@
+.git
+out/*
+!out/nfqws2
+container/*.log
+*.tar
+*.tar.gz
