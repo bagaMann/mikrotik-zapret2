@@ -1,0 +1,5 @@
+ARG BASE_IMAGE=mikrotik-zapret2:nfqueue-probe
+FROM ${BASE_IMAGE}
+COPY container/probe_nfqws2_lua_drop2.py /usr/local/bin/probe_nfqws2_lua_drop2.py
+COPY container/probe_drop.lua /usr/local/share/zapret2/probe_drop.lua
+ENTRYPOINT ["python3", "-u", "/usr/local/bin/probe_nfqws2_lua_drop2.py"]
