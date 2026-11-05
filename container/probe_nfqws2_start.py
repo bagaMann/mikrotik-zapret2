@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded nfqws2 startup probe. No packet rules or traffic changes."""
+import ctypes
 import os
 import subprocess
 import sys
