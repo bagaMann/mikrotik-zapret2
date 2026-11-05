@@ -1,0 +1,4 @@
+ARG BASE_IMAGE=mikrotik-zapret2:nfqueue-probe
+FROM ${BASE_IMAGE}
+COPY container/probe_nfqueue_packet.py /usr/local/bin/probe_nfqueue_packet.py
+ENTRYPOINT ["python3", "-u", "/usr/local/bin/probe_nfqueue_packet.py"]
