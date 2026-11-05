@@ -30,6 +30,8 @@ lib.nfq_create_queue.restype = ptr
 CB = C.CFUNCTYPE(C.c_int, ptr, ptr, ptr, ptr)
 lib.nfq_create_queue.argtypes = [ptr, C.c_uint16, CB, ptr]
 lib.nfq_destroy_queue.argtypes = [ptr]
+lib.nfq_set_mode.argtypes = [ptr, C.c_uint8, C.c_uint32]
+lib.nfq_set_mode.restype = C.c_int
 lib.nfq_fd.argtypes = [ptr]
 lib.nfq_fd.restype = C.c_int
 lib.nfq_handle_packet.argtypes = [ptr, ptr, C.c_int]
@@ -77,6 +79,10 @@ try:
     if not queue:
         print("RESULT NFQ_BIND_FAILED errno=%d" % C.get_errno(), flush=True)
         sys.exit(24)
+    mode_rc = lib.nfq_set_mode(queue, 2, 65535)
+    print(f"RESULT NFQ_SET_COPY_PACKET_MODE_RC={mode_rc} errno={C.get_errno()}", flush=True)
+    if mode_rc < 0:
+        sys.exit(27)
     receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     receiver.bind(("127.0.0.1", PORT))
     receiver.setblocking(False)
