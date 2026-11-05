@@ -15,7 +15,8 @@ BIN = "/usr/local/bin/nfqws2"
 TABLE = "zapret2_lua_modify_probe"
 PORT = 49326
 QUEUE = 49159
-PAYLOAD = b"zapret2-lua-original"\nEXPECTED = b"zapret2-lua-modified"
+PAYLOAD = b"zapret2-lua-original"
+EXPECTED = b"zapret2-lua-modified"
 LUA = "/usr/local/share/zapret2/probe_modify.lua"
 MARKER = "ZAPRET2_LUA_MODIFY_INVOKED"
 PR_CAPBSET_DROP = 24
