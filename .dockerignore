@@ -1,6 +1,8 @@
 .git
 out/*
 !out/nfqws2
+!out/zapret2-upstream-lua/
+!out/zapret2-upstream-lua/*.lua
 container/*.log
 *.tar
 *.tar.gz
