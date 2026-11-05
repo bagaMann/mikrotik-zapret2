@@ -85,11 +85,21 @@ try:
     sent = sender.sendto(b"zapret2-nfq-probe", ("127.0.0.1", PORT))
     print(f"RESULT UDP_SEND_RETURNED bytes={sent}", flush=True)
     fd = lib.nfq_fd(handle)
+    print(f"RESULT NFQ_FD={fd}", flush=True)
+    try:
+        with open("/proc/net/netfilter/nfnetlink_queue", encoding="ascii") as q:
+            print("RESULT KERNEL_NFQUEUE_STATE=" + repr(q.read().strip()), flush=True)
+    except OSError as e:
+        print(f"RESULT KERNEL_NFQUEUE_STATE_ERROR={e}", flush=True)
+    print("RESULT NFT_RULE_BEFORE_WAIT", flush=True)
+    run("nft", "-a", "list", "chain", "ip", TABLE, "out")
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline and not seen[0]:
         ready, _, _ = select.select([fd], [], [], max(0, deadline - time.monotonic()))
         if ready:
+            print("RESULT NFQ_FD_READABLE", flush=True)
             buf = os.read(fd, 65535)
+            print(f"RESULT NFQ_NETLINK_BYTES={len(buf)}", flush=True)
             data = C.create_string_buffer(buf)
             lib.nfq_handle_packet(handle, data, len(buf))
     if not seen[0]:
@@ -97,6 +107,11 @@ try:
         run("nft", "-a", "list", "chain", "ip", TABLE, "out")
         ready, _, _ = select.select([receiver], [], [], 0)
         print(f"RESULT RECEIVER_READABLE={bool(ready)}", flush=True)
+        try:
+            with open("/proc/net/netfilter/nfnetlink_queue", encoding="ascii") as q:
+                print("RESULT KERNEL_NFQUEUE_STATE_TIMEOUT=" + repr(q.read().strip()), flush=True)
+        except OSError as e:
+            print(f"RESULT KERNEL_NFQUEUE_STATE_ERROR={e}", flush=True)
         print("RESULT NFQUEUE_PACKET_TIMEOUT", flush=True)
         sys.exit(25)
     ready, _, _ = select.select([receiver], [], [], 2)
