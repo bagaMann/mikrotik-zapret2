@@ -66,7 +66,7 @@ try:
     if not run("nft", "add", "chain", "ip", TABLE, "out", "{ type filter hook output priority -100; policy accept; }"):
         print("RESULT NFT_CHAIN_CREATE_FAILED", flush=True)
         sys.exit(21)
-    if not run("nft", "add", "rule", "ip", TABLE, "out", "ip", "daddr", "127.0.0.1", "udp", "dport", str(PORT), "queue", "num", str(QUEUE)):
+    if not run("nft", "add", "rule", "ip", TABLE, "out", "ip", "daddr", "127.0.0.1", "udp", "dport", str(PORT), "counter", "queue", "num", str(QUEUE)):
         print("RESULT NFT_QUEUE_RULE_FAILED", flush=True)
         sys.exit(22)
     handle = lib.nfq_open()
@@ -81,7 +81,9 @@ try:
     receiver.bind(("127.0.0.1", PORT))
     receiver.setblocking(False)
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sender.sendto(b"zapret2-nfq-probe", ("127.0.0.1", PORT))
+    print("RESULT UDP_SEND_BEGIN", flush=True)
+    sent = sender.sendto(b"zapret2-nfq-probe", ("127.0.0.1", PORT))
+    print(f"RESULT UDP_SEND_RETURNED bytes={sent}", flush=True)
     fd = lib.nfq_fd(handle)
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline and not seen[0]:
@@ -91,6 +93,10 @@ try:
             data = C.create_string_buffer(buf)
             lib.nfq_handle_packet(handle, data, len(buf))
     if not seen[0]:
+        print("=== nft rule and counters at timeout ===", flush=True)
+        run("nft", "-a", "list", "chain", "ip", TABLE, "out")
+        ready, _, _ = select.select([receiver], [], [], 0)
+        print(f"RESULT RECEIVER_READABLE={bool(ready)}", flush=True)
         print("RESULT NFQUEUE_PACKET_TIMEOUT", flush=True)
         sys.exit(25)
     ready, _, _ = select.select([receiver], [], [], 2)
