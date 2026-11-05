@@ -10,8 +10,8 @@ rm -f "$DEST" "$DEST.sha256"
 # Convert the Docker daemon image into a legacy Docker archive, not OCI layout.
 skopeo copy --format v2s2 "docker-daemon:$IMAGE" "docker-archive:$DEST:$IMAGE"
 # RouterOS importer expects Docker manifest.json and config JSON in the archive.
-tar tf "$DEST" | grep -qx 'manifest.json'
-if tar tf "$DEST" | grep -qx 'oci-layout'; then
+tar tf "$DEST" | grep -x 'manifest.json' >/dev/null
+if tar tf "$DEST" | grep -x 'oci-layout' >/dev/null; then
   echo "Unexpected OCI archive; refusing to use for RouterOS" >&2
   exit 3
 fi
