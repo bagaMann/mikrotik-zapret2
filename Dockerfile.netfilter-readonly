@@ -1,0 +1,5 @@
+ARG BASE_IMAGE=mikrotik-zapret2:diagnostic
+FROM ${BASE_IMAGE}
+COPY container/probe_netfilter.sh /usr/local/bin/probe_netfilter.sh
+RUN chmod 0755 /usr/local/bin/probe_netfilter.sh
+ENTRYPOINT ["/usr/local/bin/probe_netfilter.sh"]
