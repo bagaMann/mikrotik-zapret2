@@ -159,7 +159,7 @@ def main():
     if result == 0:
         print("RESULT NATIVE_NFQWS2_LUA_DROP_TEST_SUCCESS", flush=True)
     else:
-        print(f"RESULT NATIVE_NFQWS2_LUA_PASS_TEST_FAILED code={result}", flush=True)
+        print(f"RESULT NATIVE_NFQWS2_LUA_DROP_TEST_FAILED code={result}", flush=True)
     return result
 
 if __name__ == "__main__":
