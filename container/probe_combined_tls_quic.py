@@ -15,6 +15,12 @@ HOST = "172.29.250.2"
 PORT = 49342
 TABLE = "zapret2_combined_lab"
 TARGET = "1.1.1.1"
+TCP_MODE = "fake"
+TCP_MODES = {
+    "fake": "--lua-desync=fake:blob=fake_default_tls:badsum:ip_ttl=8",
+    "multisplit": "--lua-desync=multisplit:pos=2",
+    "multidisorder": "--lua-desync=multidisorder:pos=2",
+}
 SET = "targets"
 BIN = "/usr/local/bin/nfqws2"
 LUA = [
@@ -25,7 +31,7 @@ PROFILES = {
     "tcp": {
         "queue": 49170, "log": "/tmp/zapret2-combined-tcp.log",
         "args": ["--filter-tcp=443", "--payload=tls_client_hello",
-                 "--lua-desync=fake:blob=fake_default_tls:badsum:ip_ttl=8"],
+                 TCP_MODES[TCP_MODE]],
     },
     "udp": {
         "queue": 49171, "log": "/tmp/zapret2-combined-udp.log",
@@ -85,6 +91,45 @@ def tail(path):
     except OSError:
         return {"error": "log missing"}
 
+def update_tcp_mode(mode):
+    global TCP_MODE
+    if mode not in TCP_MODES:
+        raise ValueError("mode must be fake, multisplit, or multidisorder")
+    if mode == TCP_MODE:
+        return
+    # Safety: remove the TCP queue rule before restarting worker. UDP remains active.
+    # Lab controller is single-threaded; caller must ensure no routed test is ongoing.
+    listing = run("nft", "-a", "list", "chain", "ip", TABLE, "forward")
+    if listing.returncode:
+        raise RuntimeError("cannot find TCP NFQUEUE rule")
+    import re
+    match = re.search(r"tcp dport 443[^\\n]*# handle (\\d+)", listing.stdout)
+    if not match:
+        raise RuntimeError("TCP NFQUEUE rule missing")
+    if run("nft", "delete", "rule", "ip", TABLE, "forward", "handle", match.group(1)).returncode:
+        raise RuntimeError("failed to remove TCP NFQUEUE rule")
+    old = children["tcp"]
+    old.terminate()
+    try:
+        old.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        old.kill()
+        old.wait()
+    handles["tcp"].close()
+    TCP_MODE = mode
+    PROFILES["tcp"]["args"][-1] = TCP_MODES[mode]
+    handles["tcp"] = open(PROFILES["tcp"]["log"], "w", buffering=1)
+    cmd = [BIN, "--qnum=" + str(PROFILES["tcp"]["queue"]), "--debug=1", *LUA, *PROFILES["tcp"]["args"]]
+    children["tcp"] = subprocess.Popen(cmd, stdout=handles["tcp"], stderr=subprocess.STDOUT,
+                                     start_new_session=True, preexec_fn=caps)
+    time.sleep(0.5)
+    if children["tcp"].poll() is not None:
+        raise RuntimeError("new TCP worker exited; queue remains fail-open (rule removed)")
+    if run("nft", "add", "rule", "ip", TABLE, "forward", "ip", "daddr", "@"+SET,
+           "tcp", "dport", "443", "counter", "queue", "num", str(PROFILES["tcp"]["queue"])).returncode:
+        raise RuntimeError("failed to reenable TCP queue; traffic remains unmodified")
+    print("RESULT TCP_MODE=" + mode, flush=True)
+
 def update_target(new_target):
     global TARGET
     addr = ipaddress.IPv4Address(new_target)
@@ -105,6 +150,7 @@ def status():
     return {
         "probe": "combined-tcp-udp",
         "target": TARGET,
+        "tcp_mode": TCP_MODE,
         "ip_forward": open("/proc/sys/net/ipv4/ip_forward").read().strip(),
         "nft": p.stdout.strip() if p.returncode == 0 else "not available",
         "profiles": {
@@ -118,18 +164,24 @@ def status():
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
-        if self.path != "/target":
-            self.respond({"error": "use POST /target"}, 404)
+        if self.path not in ("/target", "/tcp-mode"):
+            self.respond({"error": "use POST /target or /tcp-mode"}, 404)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 1 <= length <= 64:
                 raise ValueError("body must be ip=A.B.C.D")
             body = self.rfile.read(length).decode("ascii")
-            if not body.startswith("ip="):
-                raise ValueError("body must be ip=A.B.C.D")
-            update_target(body[3:].strip())
-            self.respond({"ok": True, "target": TARGET}, 200)
+            if self.path == "/target":
+                if not body.startswith("ip="):
+                    raise ValueError("body must be ip=A.B.C.D")
+                update_target(body[3:].strip())
+                self.respond({"ok": True, "target": TARGET}, 200)
+            else:
+                if not body.startswith("mode="):
+                    raise ValueError("body must be mode=fake|multisplit|multidisorder")
+                update_tcp_mode(body[5:].strip())
+                self.respond({"ok": True, "tcp_mode": TCP_MODE}, 200)
         except (ValueError, UnicodeError) as exc:
             self.respond({"error": str(exc)}, 400)
         except Exception as exc:
