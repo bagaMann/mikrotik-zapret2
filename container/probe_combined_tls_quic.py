@@ -103,7 +103,7 @@ def update_tcp_mode(mode):
     if listing.returncode:
         raise RuntimeError("cannot find TCP NFQUEUE rule")
     import re
-    match = re.search(r"tcp dport 443[^\\n]*# handle (\\d+)", listing.stdout)
+    match = re.search(r"tcp dport 443[^\n]*# handle (\d+)", listing.stdout)
     if not match:
         raise RuntimeError("TCP NFQUEUE rule missing")
     if run("nft", "delete", "rule", "ip", TABLE, "forward", "handle", match.group(1)).returncode:
