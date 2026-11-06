@@ -1,0 +1,6 @@
+ARG BASE_IMAGE=mikrotik-zapret2:nfqueue-probe
+FROM ${BASE_IMAGE}
+COPY container/probe_forward_quic_fake.py /usr/local/bin/probe_forward_quic_fake.py
+COPY out/zapret2-upstream-lua/zapret-lib.lua /usr/local/share/zapret2/zapret-lib.lua
+COPY out/zapret2-upstream-lua/zapret-antidpi.lua /usr/local/share/zapret2/zapret-antidpi.lua
+ENTRYPOINT ["python3", "-u", "/usr/local/bin/probe_forward_quic_fake.py"]
