@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Lab-only combined TCP TLS and UDP QUIC nfqws2 probe for CHR.
-Only 1.1.1.1:443 is queued. No RouterOS configuration is changed.
+Only one explicitly configured IPv4 target:443 is queued. No RouterOS configuration is changed.
 """
 import ctypes
 import http.server
+import ipaddress
 import json
 import os
 import subprocess
@@ -14,6 +15,7 @@ HOST = "172.29.250.2"
 PORT = 49342
 TABLE = "zapret2_combined_lab"
 TARGET = "1.1.1.1"
+SET = "targets"
 BIN = "/usr/local/bin/nfqws2"
 LUA = [
     "--lua-init=@/usr/local/share/zapret2/zapret-lib.lua",
@@ -83,6 +85,21 @@ def tail(path):
     except OSError:
         return {"error": "log missing"}
 
+def update_target(new_target):
+    global TARGET
+    addr = ipaddress.IPv4Address(new_target)
+    if not addr.is_global:
+        raise ValueError("target must be a public IPv4 address")
+    # A temporary gap in interception is intentional and fail-open for this lab.
+    if run("nft", "flush", "set", "ip", TABLE, SET).returncode:
+        raise RuntimeError("failed to flush targets set")
+    if run("nft", "add", "element", "ip", TABLE, SET, "{ " + str(addr) + " }").returncode:
+        # restore the previous target on update failure
+        run("nft", "add", "element", "ip", TABLE, SET, "{ " + TARGET + " }")
+        raise RuntimeError("failed to add target to nft set")
+    TARGET = str(addr)
+    print("RESULT TARGET_CHANGED=" + TARGET, flush=True)
+
 def status():
     p = run("nft", "-a", "list", "chain", "ip", TABLE, "forward")
     return {
@@ -100,6 +117,24 @@ def status():
     }
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path != "/target":
+            self.respond({"error": "use POST /target"}, 404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 1 <= length <= 64:
+                raise ValueError("body must be ip=A.B.C.D")
+            body = self.rfile.read(length).decode("ascii")
+            if not body.startswith("ip="):
+                raise ValueError("body must be ip=A.B.C.D")
+            update_target(body[3:].strip())
+            self.respond({"ok": True, "target": TARGET}, 200)
+        except (ValueError, UnicodeError) as exc:
+            self.respond({"error": str(exc)}, 400)
+        except Exception as exc:
+            self.respond({"error": str(exc)}, 500)
+
     def do_GET(self):
         if self.path not in ("/health", "/stats"):
             result, status_code = {"error": "use /health or /stats"}, 404
@@ -143,9 +178,15 @@ def main():
         if run("nft", "add", "chain", "ip", TABLE, "forward",
                "{ type filter hook forward priority -100; policy accept; }").returncode:
             raise RuntimeError("nft add chain failed")
+        if run("nft", "add", "set", "ip", TABLE, SET,
+               "{ type ipv4_addr; }").returncode:
+            raise RuntimeError("nft add target set failed")
+        if run("nft", "add", "element", "ip", TABLE, SET,
+               "{ " + TARGET + " }").returncode:
+            raise RuntimeError("nft initial target failed")
         for name, conf in PROFILES.items():
             if run("nft", "add", "rule", "ip", TABLE, "forward",
-                   "ip", "daddr", TARGET, name, "dport", "443",
+                   "ip", "daddr", "@"+ SET, name, "dport", "443",
                    "counter", "queue", "num", str(conf["queue"])).returncode:
                 raise RuntimeError("nft add rule " + name + " failed")
         print("RESULT COMBINED_READY", flush=True)
