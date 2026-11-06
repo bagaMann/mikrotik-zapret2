@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CHR lab TTL sweep (2..8): controlled nfqws2 restart via HTTP POST.
+"""CHR lab TTL sweep (2..64): controlled nfqws2 restart via HTTP POST.
 Only container's Linux namespace is modified. RouterOS lab policy stays unchanged.
 """
 import ctypes
@@ -132,7 +132,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                "nfqws2_running": child is not None and child.poll() is None})
         if self.path == "/stats":
             return self.send_json(stat())
-        self.send_json({"error": "GET /health, GET /stats, POST /ttl body ttl=N (2..8)"}, 404)
+        self.send_json({"error": "GET /health, GET /stats, POST /ttl body ttl=N (2..64)"}, 404)
     def do_POST(self):
         if self.path != "/ttl":
             return self.send_json({"error": "not found"}, 404)
@@ -144,8 +144,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if sorted(params.keys()) != ["ttl"] or len(params["ttl"]) != 1:
                 raise ValueError("expected ttl=N")
             ttl = int(params["ttl"][0])
-            if not 2 <= ttl <= 8:
-                raise ValueError("ttl must be 2..8")
+            if not 2 <= ttl <= 64:
+                raise ValueError("ttl must be 2..64")
         except (ValueError, UnicodeError) as exc:
             return self.send_json({"error": str(exc)}, 400)
         if ttl == current_ttl and child is not None and child.poll() is None:
