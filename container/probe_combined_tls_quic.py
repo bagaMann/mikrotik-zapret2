@@ -144,6 +144,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 for data in result["profiles"].values():
                     data.pop("log", None)
                 result.pop("nft", None)
+        self.respond(result, status_code)
+
+    def respond(self, result, status_code):
         body = (json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n").encode()
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
