@@ -1,0 +1,4 @@
+ARG BASE_IMAGE=mikrotik-zapret2:nfqueue-probe
+FROM ${BASE_IMAGE}
+COPY container/probe_forward_quic_pass.py /usr/local/bin/probe_forward_quic_pass.py
+ENTRYPOINT ["python3", "-u", "/usr/local/bin/probe_forward_quic_pass.py"]
